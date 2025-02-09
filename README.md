@@ -12,7 +12,6 @@ This bot is particularly useful for students in **exact sciences** (e.g., Comput
 - 🏫 Designed specifically for **Open University** students.
 - 📝 Supports adding, deleting, and listing grades before calculation.
 - 💾 Remembers user inputs within a session.
-- 🔄 Keeps itself alive using a periodic ping to the server.
 
 ---
 
