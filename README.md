@@ -25,8 +25,8 @@ Ensure you have **Python 3.8+** installed. You also need a **Telegram Bot Token*
 1️⃣ Clone the repository:
 
 ```sh
-git clone https://github.com/YOUR_GITHUB_USERNAME/Average-Bot.git
-cd Average-Bot
+git clone https://github.com/gallevi10/average_telegram_bot_OpenU
+cd average_telegram_bot_OpenU
 ```
 
 2️⃣ Install dependencies:
@@ -39,12 +39,12 @@ pip install -r requirements.txt
 
 - On **Linux/macOS**:
   ```sh
-  export BOT_TOKEN="your-telegram-bot-token"
+  export BOT_TOKEN="<your telegram bot token>"
   ```
 
 - On **Windows** (PowerShell):
   ```powershell
-  $env:BOT_TOKEN="your-telegram-bot-token"
+  $env:BOT_TOKEN="<your telegram bot token>"
   ```
 
 4️⃣ Run the bot:
