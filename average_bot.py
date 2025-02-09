@@ -3,9 +3,6 @@ from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, filters, ConversationHandler, CallbackContext)
 import logging
 import os
-import requests
-import threading
-import time
 
 # logs for debugging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -201,16 +198,6 @@ def delete_or_finish_buttons() -> InlineKeyboardMarkup:
     ]]
     return InlineKeyboardMarkup(keyboard)
 
-def keep_alive():
-    """Keeps the bot alive by pinging the server every 5 minutes."""
-    while True:
-        try:
-            requests.get("https://average-bot.onrender.com")  # sends a ping to the server
-            print("✅ Keep-alive ping sent!")
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Failed to send keep-alive ping: {e}")
-        time.sleep(300)  # sleeps for 5 minutes
-
 
 def main():
     """Main function to run the bot."""
@@ -237,7 +224,6 @@ def main():
     app.add_handler(conv_handler)
     app.run_polling()
 
-threading.Thread(target=keep_alive, daemon=True).start()  # starts the keep-alive thread
 
 if __name__ == '__main__':
     main()
