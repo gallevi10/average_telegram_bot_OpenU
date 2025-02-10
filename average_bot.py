@@ -190,7 +190,7 @@ async def end(update: Update, context: CallbackContext) -> int:
     if user_id in ACTIVE_USERS: # removes the user from the active users dictionary
         del ACTIVE_USERS[user_id]
 
-    user_logger.info(f"User {user_id} exited the bot. Total active users: {len(ACTIVE_USERS)}")
+    user_logger.info(f"🚫 User {user_id} exited the bot. Total active users: {len(ACTIVE_USERS)}")
     logging.info(f"User {user_id} exited the bot.")
     return ConversationHandler.END # ends the conversation
 
