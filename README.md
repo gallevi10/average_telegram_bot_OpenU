@@ -25,7 +25,7 @@ Ensure you have **Python 3.8+** installed. You also need a **Telegram Bot Token*
 1️⃣ Clone the repository:
 
 ```sh
-git clone https://github.com/gallevi10/average_telegram_bot_OpenU
+git clone https://github.com/gallevi10/average_telegram_bot_OpenU.git
 cd average_telegram_bot_OpenU
 ```
 
@@ -61,7 +61,7 @@ python average_bot.py
 2. The bot will ask if you are studying an **exact sciences** degree.
 3. Enter grades and credit points in the format:  
    ```
-   <grade (1-100)> <credits (1-8)>
+   <grade (60-100)> <credits (1-8)>
    ```
    Example: `90 5`
 4. If you are an exact sciences student, specify if the course is **regular** or **advanced**.
