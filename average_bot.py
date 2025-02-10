@@ -4,6 +4,7 @@
 # License: MIT
 # Description: A bot that assists students in calculating their university GPA.
 
+
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, filters, ConversationHandler, CallbackContext)
@@ -17,8 +18,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 START_TEXT = "🎓 שלום! אני יודע לחשב ממוצע באוניברסיטה הפתוחה.\nאשמח לעזור לך לחשב את הממוצע שלך."
 EXACT_SCIENCES_QUESTION = "❓ האם אתה לומד תואר במדעים מדויקים (כגון מתמטיקה, מדעי המחשב וכו')?"
 COURSE_TYPE_QUESTION = "📌 האם הקורס הוא מתקדם או רגיל?"
-GRADE_PROMPT = "📌 אנא הכנס ציון ונק\"ז בפורמט הבא: <ציון 1-100> <נק\"ז 1-8> \n(קודם ציון ואז נק\"ז, למשל 5 90)."
-GRADE_OR_CREDITS_ERROR = "❌ קלט שגוי! עלייך להכניס ציון מ1 עד 100 ונק\"ז מ1 עד 8 בלבד."
+GRADE_PROMPT = "📌 אנא הכנס ציון ונק\"ז בפורמט הבא: \n<ציון 60-100> <נק\"ז 1-8> \n(קודם ציון ואז נק\"ז, למשל 5 90)."
+GRADE_OR_CREDITS_ERROR = "❌ קלט שגוי! עלייך להכניס ציון מ60 עד 100 ונק\"ז מ1 עד 8 בלבד."
 FORMAT_ERROR = "❌ קלט שגוי! אנא הכנס ציון ונק\"ז בפורמט הנכון (למשל 5 90)."
 ADD_GRADE = "📌 הכנס ציון נוסף או לחץ 'סיימתי' לסיום.\n"
 NO_GRADES_ERROR = "❌ לא הוזנו ציונים."
@@ -177,7 +178,7 @@ async def end(update: Update) -> int:
 # helper functions
 def check_grade_and_credit(grade :float, credit :float) -> bool:
     """Checks if the user's input is a valid score."""
-    return 1 <= grade <= 100 and 1 <= credit <= 8
+    return 60 <= grade <= 100 and 1 <= credit <= 8
 
 def get_history(context: CallbackContext) -> str:
     """Returns the user's grades history."""
