@@ -154,7 +154,7 @@ async def calculate_average(update: Update, context: CallbackContext) -> int:
 
     if not grades: # if the user did not enter any grades
         await query.message.reply_text(NO_GRADES_ERROR, reply_markup=ReplyKeyboardRemove())
-        return await end(query)
+        return await end(query, context)
 
     # calculates the total weighted grades
     total_weighted = sum(grade * credits * (ADVANCED_COURSE if is_advanced else 1) for grade, credits, is_advanced in grades)
@@ -162,9 +162,9 @@ async def calculate_average(update: Update, context: CallbackContext) -> int:
     total_credits = sum(credits * (ADVANCED_COURSE if is_advanced else 1) for _, credits, is_advanced in grades)
     weighted_avg = total_weighted / total_credits # calculates the weighted average
     await query.message.reply_text(f"🎓 הממוצע המשוקלל שלך הוא: {weighted_avg:.2f}", reply_markup=ReplyKeyboardRemove())
-    return await end(query)
+    return await end(query,context)
 
-async def end(update: Update) -> int:
+async def end(update: Update, context: CallbackContext) -> int:
     """Ends the conversation with the user."""
     if update.message: # if the user typed /end
         await update.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
