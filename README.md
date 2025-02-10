@@ -103,7 +103,7 @@ Contributions are welcome! Feel free to fork the repository and submit a pull re
 
 ---
 
-## 📞 Contact
+## ✉️ Contact
 
 For any issues or feature requests, open an issue on GitHub or contact me at **gallevi1902@gmail.com**.
 
