@@ -1,3 +1,9 @@
+# Average Bot - Telegram Bot for GPA Calculation
+# Author: Gal Levi
+# Date: February 2025
+# License: MIT
+# Description: A bot that assists students in calculating their university GPA.
+
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, filters, ConversationHandler, CallbackContext)
@@ -11,8 +17,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 START_TEXT = "🎓 שלום! אני יודע לחשב ממוצע באוניברסיטה הפתוחה.\nאשמח לעזור לך לחשב את הממוצע שלך."
 EXACT_SCIENCES_QUESTION = "❓ האם אתה לומד תואר במדעים מדויקים (כגון מתמטיקה, מדעי המחשב וכו')?"
 COURSE_TYPE_QUESTION = "📌 האם הקורס הוא מתקדם או רגיל?"
-GRADE_PROMPT = "📌 אנא הכנס ציון ונק\"ז בפורמט הבא: <ציון 60-100> <נק\"ז 1-8> \n(קודם ציון ואז נק\"ז, למשל 5 90)."
-GRADE_OR_CREDITS_ERROR = "❌ קלט שגוי! עלייך להכניס ציון מ60 עד 100 ונק\"ז מ1 עד 8 בלבד."
+GRADE_PROMPT = "📌 אנא הכנס ציון ונק\"ז בפורמט הבא: <ציון 1-100> <נק\"ז 1-8> \n(קודם ציון ואז נק\"ז, למשל 5 90)."
+GRADE_OR_CREDITS_ERROR = "❌ קלט שגוי! עלייך להכניס ציון מ1 עד 100 ונק\"ז מ1 עד 8 בלבד."
 FORMAT_ERROR = "❌ קלט שגוי! אנא הכנס ציון ונק\"ז בפורמט הנכון (למשל 5 90)."
 ADD_GRADE = "📌 הכנס ציון נוסף או לחץ 'סיימתי' לסיום.\n"
 NO_GRADES_ERROR = "❌ לא הוזנו ציונים."
@@ -44,12 +50,10 @@ async def start(update: Update, context: CallbackContext) -> int:
 async def ask_degree(update: Update, context: CallbackContext) -> int:
     """Handles the user's response about studying an exact sciences degree."""
     query = update.callback_query
-    await query.answer()  # acknowledge the button press
+    await query.answer() # acknowledges the user's response
 
-    user_id = query.from_user.id # gets the user's id
-    context.user_data[user_id] = {}  # creates a dictionary to store the user's data
-    context.user_data[user_id]["is_exact_sciences"] = (query.data == "degree_yes")
-    context.user_data[user_id]["grades"] = []  # creates an empty list to store the user's grades
+    context.user_data["is_exact_sciences"] = (query.data == "degree_yes")
+    context.user_data["grades"] = []  # creates an empty list to store the user's grades
 
     await query.message.reply_text(GRADE_PROMPT)
     return ENTER_GRADE
@@ -58,22 +62,23 @@ async def ask_degree(update: Update, context: CallbackContext) -> int:
 async def receive_grade(update: Update, context: CallbackContext) -> int:
     """Receives the user's grade and credits."""
     if update.callback_query: # if the user clicked an inline button
-        if update.callback_query.data == "finished":
+        query = update.callback_query
+        await query.answer()
+        if query.data == "finished":
             return await calculate_average(update, context)
-        elif update.callback_query.data == "delete":
-            await update.callback_query.message.reply_text(DELETE_GRADE_PROMPT)
+        elif query.data == "delete":
+            await query.message.reply_text(DELETE_GRADE_PROMPT)
             return DELETE_GRADE
 
-    user_id = update.message.from_user.id
     text = update.message.text.strip() # gets the user's grade and credits
     try:
         curr_grade, curr_credit = map(float, text.split())
         if not check_grade_and_credit(curr_grade, curr_credit): # checks if the user's grade and credits are valid
             await update.message.reply_text(GRADE_OR_CREDITS_ERROR)
             return ENTER_GRADE
-        context.user_data[user_id]["curr_grade"] = curr_grade
-        context.user_data[user_id]["curr_credit"] = curr_credit
-        if context.user_data[user_id]["is_exact_sciences"]: # if the user studies an exact sciences degree
+        context.user_data["curr_grade"] = curr_grade
+        context.user_data["curr_credit"] = curr_credit
+        if context.user_data["is_exact_sciences"]: # if the user studies an exact sciences degree
             return await choose_course_type(update)
 
         return await insert_grade_not_exact(update, context) # if the user does not study an exact sciences degree
@@ -96,11 +101,11 @@ async def choose_course_type(update: Update) -> int:
 async def insert_grade_not_exact(update: Update, context: CallbackContext) -> int:
     """Inserts the user's grade and credits - not exact sciences student."""
 
-    user_id = update.message.from_user.id
     # adds the user's grade and credits to the list of grades
-    context.user_data[user_id]["grades"].append((context.user_data[user_id]["curr_grade"],
-                                                 context.user_data[user_id]["curr_credit"], False))
-    grades_typed = get_history(user_id, context)
+    context.user_data["grades"].append((context.user_data["curr_grade"],
+                                        context.user_data["curr_credit"],
+                                        False))
+    grades_typed = get_history(context)
     await update.message.reply_text(ADD_GRADE + grades_typed, reply_markup=delete_or_finish_buttons())
     return ENTER_GRADE
 
@@ -109,32 +114,30 @@ async def receive_course_type(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     await query.answer()
 
-    user_id = query.from_user.id
     course_type = query.data  # either "advanced" or "regular"
-    curr_grade = context.user_data[user_id]["curr_grade"]
-    curr_credit = context.user_data[user_id]["curr_credit"]
+    curr_grade = context.user_data["curr_grade"]
+    curr_credit = context.user_data["curr_credit"]
 
-    context.user_data[user_id]["grades"].append((curr_grade, curr_credit, (course_type == "advanced")))
+    context.user_data["grades"].append((curr_grade, curr_credit, (course_type == "advanced")))
 
-    grades_typed = get_history(user_id, context)
+    grades_typed = get_history(context)
     await query.message.reply_text(ADD_GRADE + grades_typed, reply_markup=delete_or_finish_buttons())
     return ENTER_GRADE
 
 async def delete_grade(update: Update, context: CallbackContext) -> int:
     """Deletes a grade the user entered by index."""
-    user_id = update.message.from_user.id
     text = update.message.text.strip()  # gets the user's index to delete
     try:
         index = int(text)
-        if index < 1 or index > len(context.user_data[user_id]["grades"]): # checks if the index is valid
+        if index < 1 or index > len(context.user_data["grades"]): # checks if the index is valid
             await update.message.reply_text(WRONG_INDEX_ERROR)
             return DELETE_GRADE
 
-        context.user_data[user_id]["grades"].pop(index - 1) # deletes the grade by index
-        if len(context.user_data[user_id]["grades"]) == 0: # if the user deleted all the grades
+        context.user_data["grades"].pop(index - 1) # deletes the grade by index
+        if len(context.user_data["grades"]) == 0: # if the user deleted all the grades
             await update.message.reply_text(GRADE_PROMPT) # prompts the user to enter a new grade from the beginning
         else:
-            grades_typed = get_history(user_id, context)
+            grades_typed = get_history(context)
             await update.message.reply_text(ADD_GRADE + grades_typed, reply_markup=delete_or_finish_buttons())
         return ENTER_GRADE
     except ValueError:
@@ -146,8 +149,8 @@ async def calculate_average(update: Update, context: CallbackContext) -> int:
     """Calculates the weighted average of the user's grades."""
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
-    grades = context.user_data[user_id]["grades"] # gets the user's grades
+
+    grades = context.user_data["grades"] # gets the user's grades
 
     if not grades: # if the user did not enter any grades
         await query.message.reply_text(NO_GRADES_ERROR, reply_markup=ReplyKeyboardRemove())
@@ -174,13 +177,13 @@ async def end(update: Update) -> int:
 # helper functions
 def check_grade_and_credit(grade :float, credit :float) -> bool:
     """Checks if the user's input is a valid score."""
-    return 60 <= grade <= 100 and 1 <= credit <= 8
+    return 1 <= grade <= 100 and 1 <= credit <= 8
 
-def get_history(user_id: int, context: CallbackContext) -> str:
+def get_history(context: CallbackContext) -> str:
     """Returns the user's grades history."""
     history = "הציונים שהוזנו עד כה:\n"
-    for i, (grade, credit, is_advanced) in enumerate(context.user_data[user_id]["grades"], start=1):
-        if context.user_data[user_id]["is_exact_sciences"]:
+    for i, (grade, credit, is_advanced) in enumerate(context.user_data["grades"], start=1):
+        if context.user_data["is_exact_sciences"]:
             if is_advanced:
                 history += f"{i}. ציון: {int(grade)}, נק\"ז: {int(credit)} (מתקדם)\n"
             else:
