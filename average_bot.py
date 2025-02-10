@@ -31,7 +31,7 @@ WRONG_NUMBER_ERROR = "❌ מספר לא תקין. אנא נסה שוב."
 ASK_DEGREE, ENTER_GRADE, CHOOSE_COURSE_TYPE, DELETE_GRADE = range(4)
 
 ADVANCED_COURSE = 1.5  # the weight of an advanced course
-
+TOKEN = os.getenv("BOT_TOKEN")  # the bot's token
 
 async def start(update: Update, context: CallbackContext) -> int:
     """Starts the conversation with the user."""
@@ -203,8 +203,6 @@ def delete_or_finish_buttons() -> InlineKeyboardMarkup:
 
 def main():
     """Main function to run the bot."""
-    TOKEN = os.getenv("BOT_TOKEN")
-
     app = Application.builder().token(TOKEN).build()
 
     # creates a conversation handler
