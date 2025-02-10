@@ -19,6 +19,7 @@ logging.basicConfig(
 
 # logs for the users
 user_logger = logging.getLogger("user_logger")
+user_logger.propagate = False
 user_handler = logging.FileHandler("bot_users.log")
 user_formatter = logging.Formatter("%(asctime)s - %(message)s")
 user_handler.setFormatter(user_formatter)
