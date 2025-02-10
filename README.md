@@ -65,7 +65,7 @@ python average_bot.py
    ```
    Example: `90 5`
 4. If you are an exact sciences student, specify if the course is **regular** or **advanced**.
-5. Add more grades or type `/end` to get your final GPA.
+5. Add more grades or click on the 'finished' button to get your final GPA.
 
 ---
 
