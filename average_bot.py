@@ -9,9 +9,14 @@ from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, filters, ConversationHandler, CallbackContext)
 import logging
 import os
+import time
 
-# logs for debugging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# logs for debugging, stored in bot.log
+logging.basicConfig(
+    filename="bot.log",
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 # constants for the bot's messages
 START_TEXT = "🎓 שלום! אני יודע לחשב ממוצע באוניברסיטה הפתוחה.\nאשמח לעזור לך לחשב את הממוצע שלך."
@@ -32,6 +37,7 @@ ASK_DEGREE, ENTER_GRADE, CHOOSE_COURSE_TYPE, DELETE_GRADE = range(4)
 
 ADVANCED_COURSE = 1.5  # the weight of an advanced course
 TOKEN = os.getenv("BOT_TOKEN")  # the bot's token
+ACTIVE_USERS = {}  # a dictionary to store the active users
 
 async def start(update: Update, context: CallbackContext) -> int:
     """Starts the conversation with the user."""
@@ -40,6 +46,9 @@ async def start(update: Update, context: CallbackContext) -> int:
         InlineKeyboardButton("לא", callback_data="degree_no")
     ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    user_id = update.message.chat_id # gets the user's id
+    ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
+    logging.info(f"📌 משתמש {user_id} התחיל שימוש בבוט. סה\"כ פעילים: {len(ACTIVE_USERS)}")
 
     await update.message.reply_text(START_TEXT)
     await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=reply_markup)
@@ -168,9 +177,15 @@ async def end(update: Update, context: CallbackContext) -> int:
     """Ends the conversation with the user."""
     if update.message: # if the user typed /end
         await update.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
+        user_id = update.message.chat_id
     else: # if the user clicked the "finished" button
         await update.callback_query.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
-    return ConversationHandler.END
+        user_id = update.callback_query.message.chat_id
+        
+    if user_id in ACTIVE_USERS: # removes the user from the active users dictionary
+        del ACTIVE_USERS[user_id]
+        
+    return ConversationHandler.END # ends the conversation
 
 
 # helper functions
