@@ -11,12 +11,19 @@ import logging
 import os
 import time
 
-# logs for debugging, stored in bot.log
+# logs for debugging
 logging.basicConfig(
-    filename="bot.log",
     format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+
+# logs for the users
+user_logger = logging.getLogger("user_logger")
+user_handler = logging.FileHandler("bot_users.log")
+user_formatter = logging.Formatter("%(asctime)s - %(message)s")
+user_handler.setFormatter(user_formatter)
+user_logger.addHandler(user_handler)
+user_logger.setLevel(logging.INFO)
 
 # constants for the bot's messages
 START_TEXT = "🎓 שלום! אני יודע לחשב ממוצע באוניברסיטה הפתוחה.\nאשמח לעזור לך לחשב את הממוצע שלך."
@@ -46,15 +53,15 @@ async def start(update: Update, context: CallbackContext) -> int:
         InlineKeyboardButton("לא", callback_data="degree_no")
     ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
     user_id = update.message.chat_id # gets the user's id
     ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
-    logging.info(f"📌 משתמש {user_id} התחיל שימוש בבוט. סה\"כ פעילים: {len(ACTIVE_USERS)}")
-
+    user_logger.info(f"📌 User {user_id} started using the bot. Total active users: {len(ACTIVE_USERS)}")
+    logging.info(f"User {user_id} started using the bot.")
+    
     await update.message.reply_text(START_TEXT)
     await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=reply_markup)
     return ASK_DEGREE
-
-
 
 async def ask_degree(update: Update, context: CallbackContext) -> int:
     """Handles the user's response about studying an exact sciences degree."""
@@ -66,7 +73,6 @@ async def ask_degree(update: Update, context: CallbackContext) -> int:
 
     await query.message.reply_text(GRADE_PROMPT)
     return ENTER_GRADE
-
 
 async def receive_grade(update: Update, context: CallbackContext) -> int:
     """Receives the user's grade and credits."""
@@ -153,7 +159,6 @@ async def delete_grade(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text(WRONG_NUMBER_ERROR)
         return DELETE_GRADE
 
-
 async def calculate_average(update: Update, context: CallbackContext) -> int:
     """Calculates the weighted average of the user's grades."""
     query = update.callback_query
@@ -181,10 +186,12 @@ async def end(update: Update, context: CallbackContext) -> int:
     else: # if the user clicked the "finished" button
         await update.callback_query.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
         user_id = update.callback_query.message.chat_id
-        
+
     if user_id in ACTIVE_USERS: # removes the user from the active users dictionary
         del ACTIVE_USERS[user_id]
-        
+
+    user_logger.info(f"User {user_id} exited the bot. Total active users: {len(ACTIVE_USERS)}")
+    logging.info(f"User {user_id} exited the bot.")
     return ConversationHandler.END # ends the conversation
 
 
