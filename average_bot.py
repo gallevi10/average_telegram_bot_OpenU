@@ -4,7 +4,6 @@
 # License: MIT
 # Description: A bot that assists students in calculating their university GPA.
 
-
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, filters, ConversationHandler, CallbackContext)
@@ -161,7 +160,6 @@ async def calculate_average(update: Update, context: CallbackContext) -> int:
     total_weighted = sum(grade * credits * (ADVANCED_COURSE if is_advanced else 1) for grade, credits, is_advanced in grades)
     # calculates the total credits
     total_credits = sum(credits * (ADVANCED_COURSE if is_advanced else 1) for _, credits, is_advanced in grades)
-    print(total_weighted, total_credits)
     weighted_avg = total_weighted / total_credits # calculates the weighted average
     await query.message.reply_text(f"🎓 הממוצע המשוקלל שלך הוא: {weighted_avg:.2f}", reply_markup=ReplyKeyboardRemove())
     return await end(query)
