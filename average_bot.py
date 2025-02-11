@@ -39,6 +39,7 @@ END_TEXT = "🚫 השיחה הסתיימה. אם תרצה להתחיל מחדש,
 DELETE_GRADE_PROMPT = "📌 הכנס את מספר האינדקס של הציון שברצונך למחוק."
 WRONG_INDEX_ERROR = "❌ האינדקס לא תואם לציון. אנא נסה שוב."
 WRONG_NUMBER_ERROR = "❌ מספר לא תקין. אנא נסה שוב."
+INACTIVITY_TEXT = "🚫 השיחה הסתיימה עקב חוסר פעילות. הקלד/לחץ על /start כדי להתחיל מחדש."
 
 # constants for the states of the conversation
 ASK_DEGREE, ENTER_GRADE, CHOOSE_COURSE_TYPE, DELETE_GRADE = range(4)
@@ -46,28 +47,34 @@ ASK_DEGREE, ENTER_GRADE, CHOOSE_COURSE_TYPE, DELETE_GRADE = range(4)
 ADVANCED_COURSE = 1.5  # the weight of an advanced course
 TOKEN = os.getenv("BOT_TOKEN")  # the bot's token
 ACTIVE_USERS = {}  # a dictionary to store the active users
+SESSION_TIMEOUT = 300 # 5 minutes
+
 
 async def start(update: Update, context: CallbackContext) -> int:
     """Starts the conversation with the user."""
-    keyboard = [[ # creates inline buttons for the user to choose if he studies an exact sciences degree
+
+    keyboard = [[  # creates inline buttons for the user to choose if he studies an exact sciences degree
         InlineKeyboardButton("כן", callback_data="degree_yes"),
         InlineKeyboardButton("לא", callback_data="degree_no")
     ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    user_id = update.message.chat_id # gets the user's id
-    ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
+
+    user_id = update.message.chat_id  # gets the user's id
+    ACTIVE_USERS[user_id] = time.time()  # adds the user to the active users dictionary
     user_logger.info(f"📌 User {user_id} started using the bot. Total active users: {len(ACTIVE_USERS)}")
     logging.info(f"User {user_id} started using the bot.")
-    
+    # creates a job to check the activity of the user
+    context.job_queue.run_once(check_inactivity, SESSION_TIMEOUT, chat_id=user_id, name=str(user_id))
+
     await update.message.reply_text(START_TEXT)
     await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=reply_markup)
     return ASK_DEGREE
 
+
 async def ask_degree(update: Update, context: CallbackContext) -> int:
     """Handles the user's response about studying an exact sciences degree."""
     query = update.callback_query
-    await query.answer() # acknowledges the user's response
+    await query.answer()  # acknowledges the user's response
 
     context.user_data["is_exact_sciences"] = (query.data == "degree_yes")
     context.user_data["grades"] = []  # creates an empty list to store the user's grades
@@ -75,9 +82,12 @@ async def ask_degree(update: Update, context: CallbackContext) -> int:
     await query.message.reply_text(GRADE_PROMPT)
     return ENTER_GRADE
 
+
 async def receive_grade(update: Update, context: CallbackContext) -> int:
     """Receives the user's grade and credits."""
-    if update.callback_query: # if the user clicked an inline button
+    await update_activity(update, context)  # updates the user's activity
+
+    if update.callback_query:  # if the user clicked an inline button
         query = update.callback_query
         await query.answer()
         if query.data == "finished":
@@ -86,26 +96,56 @@ async def receive_grade(update: Update, context: CallbackContext) -> int:
             await query.message.reply_text(DELETE_GRADE_PROMPT)
             return DELETE_GRADE
 
-    text = update.message.text.strip() # gets the user's grade and credits
+    text = update.message.text.strip()  # gets the user's grade and credits
     try:
         curr_grade, curr_credit = map(float, text.split())
-        if not check_grade_and_credit(curr_grade, curr_credit): # checks if the user's grade and credits are valid
+        if not check_grade_and_credit(curr_grade, curr_credit):  # checks if the user's grade and credits are valid
             await update.message.reply_text(GRADE_OR_CREDITS_ERROR)
             return ENTER_GRADE
         context.user_data["curr_grade"] = curr_grade
         context.user_data["curr_credit"] = curr_credit
-        if context.user_data["is_exact_sciences"]: # if the user studies an exact sciences degree
+        if context.user_data["is_exact_sciences"]:  # if the user studies an exact sciences degree
             return await choose_course_type(update)
 
-        return await insert_grade_not_exact(update, context) # if the user does not study an exact sciences degree
-    except ValueError: # if the user's input is not in the correct format
+        return await insert_grade_not_exact(update, context)  # if the user does not study an exact sciences degree
+    except ValueError:  # if the user's input is not in the correct format
         await update.message.reply_text(FORMAT_ERROR)
         return ENTER_GRADE
 
+async def check_inactivity(context: CallbackContext) -> None:
+    """Checks the activity of the user"""
+    job = context.job
+    user_id = job.chat_id
+
+    if user_id in ACTIVE_USERS:
+        last_active = ACTIVE_USERS[user_id]
+        now = time.time()
+
+        if now - last_active > SESSION_TIMEOUT:
+            # the user was inactivated for a long time - disconnects him
+            del ACTIVE_USERS[user_id]
+            context.user_data.clear()  # resets the user data
+            logging.info(f"⏳ User {user_id} was inactive for too long. Ending session.")
+            user_logger.info(f"⏳ User {user_id} session expired due to inactivity.")
+
+            await context.bot.send_message(chat_id=user_id, text=INACTIVITY_TEXT, reply_markup=ReplyKeyboardRemove())
+
+async def update_activity(update: Update, context: CallbackContext) -> None:
+    """Updates the activity of the user after each interaction"""
+    user_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
+    ACTIVE_USERS[user_id] = time.time()
+
+    # cancels previous jobs for this user
+    old_job = context.job_queue.get_jobs_by_name(str(user_id))
+    for job in old_job:
+        job.schedule_removal()  # removes the previous jobs
+
+    # schedules a new inactivity check
+    context.job_queue.run_once(check_inactivity, SESSION_TIMEOUT, chat_id=user_id, name=str(user_id))
 
 async def choose_course_type(update: Update) -> int:
     """Asks the user if the course is advanced or regular using inline buttons - exact sciences student."""
-    keyboard = [[ # creates inline buttons for the user to choose the course type
+    keyboard = [[  # creates inline buttons for the user to choose the course type
         InlineKeyboardButton("מתקדם", callback_data="advanced"),
         InlineKeyboardButton("רגיל", callback_data="regular")
     ]]
@@ -113,6 +153,7 @@ async def choose_course_type(update: Update) -> int:
 
     await update.message.reply_text(COURSE_TYPE_QUESTION, reply_markup=reply_markup)
     return CHOOSE_COURSE_TYPE
+
 
 async def insert_grade_not_exact(update: Update, context: CallbackContext) -> int:
     """Inserts the user's grade and credits - not exact sciences student."""
@@ -124,6 +165,7 @@ async def insert_grade_not_exact(update: Update, context: CallbackContext) -> in
     grades_typed = get_history(context)
     await update.message.reply_text(ADD_GRADE + grades_typed, reply_markup=delete_or_finish_buttons())
     return ENTER_GRADE
+
 
 async def receive_course_type(update: Update, context: CallbackContext) -> int:
     """Receives the user's course type from inline buttons - exact sciences student."""
@@ -140,18 +182,19 @@ async def receive_course_type(update: Update, context: CallbackContext) -> int:
     await query.message.reply_text(ADD_GRADE + grades_typed, reply_markup=delete_or_finish_buttons())
     return ENTER_GRADE
 
+
 async def delete_grade(update: Update, context: CallbackContext) -> int:
     """Deletes a grade the user entered by index."""
     text = update.message.text.strip()  # gets the user's index to delete
     try:
         index = int(text)
-        if index < 1 or index > len(context.user_data["grades"]): # checks if the index is valid
+        if index < 1 or index > len(context.user_data["grades"]):  # checks if the index is valid
             await update.message.reply_text(WRONG_INDEX_ERROR)
             return DELETE_GRADE
 
-        context.user_data["grades"].pop(index - 1) # deletes the grade by index
-        if len(context.user_data["grades"]) == 0: # if the user deleted all the grades
-            await update.message.reply_text(GRADE_PROMPT) # prompts the user to enter a new grade from the beginning
+        context.user_data["grades"].pop(index - 1)  # deletes the grade by index
+        if len(context.user_data["grades"]) == 0:  # if the user deleted all the grades
+            await update.message.reply_text(GRADE_PROMPT)  # prompts the user to enter a new grade from the beginning
         else:
             grades_typed = get_history(context)
             await update.message.reply_text(ADD_GRADE + grades_typed, reply_markup=delete_or_finish_buttons())
@@ -160,46 +203,51 @@ async def delete_grade(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text(WRONG_NUMBER_ERROR)
         return DELETE_GRADE
 
+
 async def calculate_average(update: Update, context: CallbackContext) -> int:
     """Calculates the weighted average of the user's grades."""
     query = update.callback_query
     await query.answer()
 
-    grades = context.user_data["grades"] # gets the user's grades
+    grades = context.user_data["grades"]  # gets the user's grades
 
-    if not grades: # if the user did not enter any grades
+    if not grades:  # if the user did not enter any grades
         await query.message.reply_text(NO_GRADES_ERROR, reply_markup=ReplyKeyboardRemove())
         return await end(query, context)
 
     # calculates the total weighted grades
-    total_weighted = sum(grade * credits * (ADVANCED_COURSE if is_advanced else 1) for grade, credits, is_advanced in grades)
+    total_weighted = sum(
+        grade * credits * (ADVANCED_COURSE if is_advanced else 1) for grade, credits, is_advanced in grades)
     # calculates the total credits
     total_credits = sum(credits * (ADVANCED_COURSE if is_advanced else 1) for _, credits, is_advanced in grades)
-    weighted_avg = total_weighted / total_credits # calculates the weighted average
+    weighted_avg = total_weighted / total_credits  # calculates the weighted average
     await query.message.reply_text(f"🎓 הממוצע המשוקלל שלך הוא: {weighted_avg:.2f}", reply_markup=ReplyKeyboardRemove())
-    return await end(query,context)
+    return await end(query, context)
+
 
 async def end(update: Update, context: CallbackContext) -> int:
     """Ends the conversation with the user."""
-    if update.message: # if the user typed /end
+    if update.message:  # if the user typed /end or /star
         await update.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
         user_id = update.message.chat_id
-    else: # if the user clicked the "finished" button
+    else:  # if the user clicked the "finished" button
         await update.callback_query.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
         user_id = update.callback_query.message.chat_id
 
-    if user_id in ACTIVE_USERS: # removes the user from the active users dictionary
+    if user_id in ACTIVE_USERS:  # removes the user from the active users dictionary
         del ACTIVE_USERS[user_id]
 
     user_logger.info(f"🚫 User {user_id} exited the bot. Total active users: {len(ACTIVE_USERS)}")
     logging.info(f"User {user_id} exited the bot.")
-    return ConversationHandler.END # ends the conversation
+
+    return ConversationHandler.END  # ends the conversation
 
 
 # helper functions
-def check_grade_and_credit(grade :float, credit :float) -> bool:
+def check_grade_and_credit(grade: float, credit: float) -> bool:
     """Checks if the user's input is a valid score."""
     return 60 <= grade <= 100 and 1 <= credit <= 8
+
 
 def get_history(context: CallbackContext) -> str:
     """Returns the user's grades history."""
@@ -214,6 +262,7 @@ def get_history(context: CallbackContext) -> str:
             history += f"{i}. ציון: {int(grade)}, נק\"ז: {int(credit)}\n"
 
     return history
+
 
 def delete_or_finish_buttons() -> InlineKeyboardMarkup:
     """Creates inline buttons for the user to choose if he finished entering grades or wants to delete a grade."""
