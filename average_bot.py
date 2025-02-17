@@ -2,6 +2,7 @@
 # Author: Gal Levi
 # Date: February 2025
 # License: MIT
+# Version: 1.0
 # Description: A bot that assists students in calculating their university GPA.
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
