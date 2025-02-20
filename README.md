@@ -12,6 +12,8 @@ This bot is particularly useful for students in **exact sciences** (e.g., Comput
 - 🏫 Designed specifically for **Open University** students.
 - 📝 Supports adding, deleting, and listing grades before calculation.
 - 💾 Remembers user inputs within a session.
+- 💡 Saves the last and saved grades to the database.
+- 🔍 Supports logging user interactions for debugging and analysis.
 
 ---
 
@@ -74,8 +76,13 @@ python average_bot.py
 ```
 Average-Bot/
 │── average_bot.py        # Main bot script
+│── db.py                 # Database setup and queries
+│── utils.py              # Helper functions and constants
 │── requirements.txt      # Dependencies
 │── README.md             # Project documentation (this file)
+│── bot_users.log         # Log file for user interactions
+│── data/                 # Directory for database storage
+│   └── database.db       # SQLite database file
 ```
 
 ---
@@ -85,6 +92,7 @@ Average-Bot/
 This bot relies on:
 
 - `python-telegram-bot`
+- `sqlite3`
 - `httpx`
 - `urllib3`
 - See full list in `requirements.txt`.
