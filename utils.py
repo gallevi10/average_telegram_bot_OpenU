@@ -56,9 +56,9 @@ UNKNOWN_TEXT_BEFORE_START = "❌ עלייך להתחיל את השיחה קוד�
 # constants for the states of the conversation
 ASK_DEGREE, ENTER_GRADE, CHOOSE_COURSE_TYPE, DELETE_GRADE, SAVE_GRADES = range(5)
 
-ADVANCED_COURSE = 1.5  # the weight of an advanced course
-TOKEN = "7990372875:AAGqG5yLlP6C-xkZe3QuPVWrxgUKNfSbgrU"  # the bot's token
-ACTIVE_USERS = {}  # a dictionary to store the active users
+ADVANCED_COURSE = 1.5 # the weight of an advanced course
+TOKEN = os.getenv("BOT_TOKEN") # gets the bot's token from the environment variables
+ACTIVE_USERS = {} # a dictionary to store the active users
 
 
 # functions for the bot's logic
