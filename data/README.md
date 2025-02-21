@@ -1,0 +1,1 @@
+# The bot is going to store the database here
