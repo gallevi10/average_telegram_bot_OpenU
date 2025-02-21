@@ -1,1 +1,1 @@
-# The bot is going to store the database here
+# The database is going to be stored here automatically
