@@ -52,6 +52,11 @@ GOING_BACK_TO_GRADES_INPUT = "🔙 חוזר להזנת ציונים..."
 DUPLICATE_INDICES_ERROR = "❌ ישנם אינדקסים כפולים. אנא נסה שוב."
 UNKNOWN_COMMAND = "❌ פקודה לא ידועה. הפקודה היחידה שנתמכת היא /start."
 UNKNOWN_TEXT_BEFORE_START = "❌ עלייך להתחיל את השיחה קודם על ידי הקלדה או לחיצה על /start."
+NO_GRADES_ENTERED_FINISHED_PRESSED = "❌ אי אפשר לחשב ממוצע ללא ציונים. אנא הכנס ציונים קודם."
+NO_GRADES_ENTERED_DELETE_PRESSED = "❌ אי אפשר למחוק ציונים כשאין ציונים. אנא הכנס ציונים קודם."
+UNKNOWN_TEXT_IN_DEGREE_STATE = "❌ קלט לא צפוי, עלייך לבחור סוג תואר קודם."
+UNKNOWN_TEXT_IN_COURSE_TYPE_STATE = "❌ קלט לא צפוי, עלייך לבחור סוג קורס קודם."
+UNKNOWN_TEXT_IN_SAVE_GRADES_STATE = "❌ קלט לא צפוי, עלייך לבחור אם לשמור את הציונים קודם."
 
 # constants for the states of the conversation
 ASK_DEGREE, ENTER_GRADE, CHOOSE_COURSE_TYPE, DELETE_GRADE, SAVE_GRADES = range(5)
