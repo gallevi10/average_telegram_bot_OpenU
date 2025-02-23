@@ -112,3 +112,14 @@ def get_exact_science(user_id : int) -> int:
         result = cursor.fetchone()
 
     return result[0] if result else -1
+
+
+def get_total_users() -> int:
+    """Retrieves the total number of users."""
+    with sqlite3.connect(PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM users")
+        result = cursor.fetchone()
+
+    return result[0] if result else 0
