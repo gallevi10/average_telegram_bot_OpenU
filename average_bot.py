@@ -33,8 +33,16 @@ async def start(update: Update, context: CallbackContext) -> int:
     """Starts the conversation with the user."""
 
     user_id = update.message.chat_id  # gets the user's id
-    ACTIVE_USERS[user_id] = time.time()  # adds the user to the active users dictionary
-    context.user_data["user_id"] = user_id # stores the user's id in the context
+    # gets if the user studies an exact sciences degree, returns -1 if the user has not chosen yet
+    exact_science_indication = get_exact_science(user_id)
+    # if the user restarted the bot before picking a degree type for the first time
+    if user_id in ACTIVE_USERS and exact_science_indication == -1:
+        user_logger.info(
+            f"User {user_id} restarted the bot before picking a degree type for the first time."
+            f" Total active users: {len(ACTIVE_USERS)}"
+        )
+        await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=degree_yes_or_no_buttons())
+        return ASK_DEGREE
 
     keyboard_change_degree = [[  # creates inline buttons for the user to choose if he studies an exact sciences degree
         InlineKeyboardButton("החלף סוג תואר", callback_data="change_degree"),
@@ -42,10 +50,15 @@ async def start(update: Update, context: CallbackContext) -> int:
 
     reply_markup_change_degree = InlineKeyboardMarkup(keyboard_change_degree)
 
-    # gets if the user studies an exact sciences degree, returns -1 if the user has not chosen yet
-    exact_science_indication = get_exact_science(user_id)
     if exact_science_indication != -1:  # if the user has already chosen if he studies an exact sciences degree
-        user_logger.info(f"User {user_id} restarted the bot.")
+        if user_id in ACTIVE_USERS:  # if the user restarted the bot before finishing
+            ACTIVE_USERS[user_id] = time.time() # updates the user's last active time
+            user_logger.info(f"User {user_id} restarted the bot before finishing the conversation."
+                             f" Total active users: {len(ACTIVE_USERS)}")
+        else:  # if the user finished the last conversation
+            ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
+            user_logger.info(f"User {user_id} restarted the bot. Total active users: {len(ACTIVE_USERS)}")
+            context.user_data["user_id"] = user_id  # stores the user's id in the context
         context.user_data["grades"] = []
         if exact_science_indication == 1:  # if the user studies an exact sciences degree
             await update.message.reply_text(EXACT_ACKNOWLEDGEMENT, reply_markup=reply_markup_change_degree)
@@ -54,9 +67,9 @@ async def start(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text(GRADE_PROMPT, reply_markup=load_grades_buttons())
         return ENTER_GRADE
 
-
+    ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
+    context.user_data["user_id"] = user_id # stores the user's id in the context
     user_logger.info(f"User {user_id} started using the bot. Total active users: {len(ACTIVE_USERS)}")
-
     await update.message.reply_text(START_TEXT) # sends the welcome message
     # asks the user if he studies an exact sciences degree
     await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=degree_yes_or_no_buttons())
@@ -82,9 +95,19 @@ async def receive_grade(update: Update, context: CallbackContext) -> int:
     if update.callback_query:  # if the user clicked an inline button
         query = update.callback_query
         if query.data == "finished": # if the user finished entering grades
+            if not context.user_data["grades"]: # if the user did not enter any grades
+                await query.answer()
+                await query.message.reply_text(NO_GRADES_ENTERED_FINISHED_PRESSED)
+                user_logger.info(f"User {context.user_data['user_id']} tried to finish without entering grades.")
+                return ENTER_GRADE
             await query.answer(COMPUTING_GRADE)
             return await calculate_average(update, context)
         elif query.data == "delete": # if the user wants to delete a grade
+            if not context.user_data["grades"]:
+                await query.answer()
+                await query.message.reply_text(NO_GRADES_ENTERED_DELETE_PRESSED)
+                user_logger.info(f"User {context.user_data['user_id']} tried to delete grades without entering any.")
+                return ENTER_GRADE
             keyboard = [[
                 InlineKeyboardButton("חזור להזנת ציונים", callback_data="go_back"),
             ]]
@@ -100,8 +123,10 @@ async def receive_grade(update: Update, context: CallbackContext) -> int:
         elif query.data == "load_last_grades" or "load_saved_grades": # if the user wants to load his grades
             if query.data == "load_last_grades":
                 loaded = get_last_grades(context.user_data["user_id"]) # loads the user's last grades
+                user_logger.info(f"User {context.user_data['user_id']} tried to load his last grades.")
             else:
                 loaded = get_saved_grades(context.user_data["user_id"]) # loads the user's saved grades
+                user_logger.info(f"User {context.user_data['user_id']} tried to load his saved grades.")
             if loaded: # if the user has grades saved
                 context.user_data["grades"] += loaded
                 await query.answer(SUCCESSFULLY_LOADED_GRADES) # lets the user know the grades were loaded successfully
@@ -185,7 +210,7 @@ async def delete_grade(update: Update, context: CallbackContext) -> int:
                                             "\n" + " ".join(map(str, wrong_indices))
                                             + "\n"
                                             "אנא הכנס אינדקסים בטווח 1-" + str(len(context.user_data["grades"])))
-            user_logger.info(f"User {context.user_data['user_id']} entered not matching index.")
+            user_logger.info(f"User {context.user_data['user_id']} entered not matching indices.")
             return DELETE_GRADE
 
         ind_set = set(indices) # creates a set of the indices to check for duplicates
@@ -287,6 +312,20 @@ async def unknown_text_before_start_handler(update: Update, context: CallbackCon
     await update.message.reply_text(UNKNOWN_TEXT_BEFORE_START)
     user_logger.info(f"User {update.message.chat_id} entered text before starting the conversation.")
 
+async def unknown_text_in_degree_state_handler(update: Update, context: CallbackContext) -> None:
+    """Handles text in the degree state."""
+    await update.message.reply_text(UNKNOWN_TEXT_IN_DEGREE_STATE)
+    user_logger.info(f"User {update.message.chat_id} entered text in the degree state.")
+
+async def unknown_text_in_course_type_state_handler(update: Update, context: CallbackContext) -> None:
+    """Handles text in the course type state."""
+    await update.message.reply_text(UNKNOWN_TEXT_IN_COURSE_TYPE_STATE)
+    user_logger.info(f"User {update.message.chat_id} entered text in the course type state.")
+
+async def unknown_text_in_save_grades_state_handler(update: Update, context: CallbackContext) -> None:
+    """Handles text in the save grades state."""
+    await update.message.reply_text(UNKNOWN_TEXT_IN_SAVE_GRADES_STATE)
+    user_logger.info(f"User {update.message.chat_id} entered text in the save grades state.")
 
 def main():
     """Main function to run the bot."""
@@ -302,7 +341,10 @@ def main():
         ],
         states={
             # state to ask the user if he studies an exact sciences degree
-            ASK_DEGREE: [CallbackQueryHandler(ask_degree, pattern="^(degree_yes|degree_no)$")],
+            ASK_DEGREE: [
+                CallbackQueryHandler(ask_degree, pattern="^(degree_yes|degree_no)$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text_in_degree_state_handler),
+            ],
             ENTER_GRADE: [ # state to enter the user's grades
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receive_grade),
                 CallbackQueryHandler(receive_grade, pattern="^finished$"),
@@ -312,10 +354,14 @@ def main():
                 CallbackQueryHandler(receive_grade, pattern="^load_saved_grades$"),
             ],
             # state to choose the course type
-            CHOOSE_COURSE_TYPE: [CallbackQueryHandler(receive_course_type, pattern="^(advanced|regular)$")],
+            CHOOSE_COURSE_TYPE: [
+                CallbackQueryHandler(receive_course_type, pattern="^(advanced|regular)$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text_in_course_type_state_handler),
+            ],
             SAVE_GRADES: [ # state to save the user's grades
                 CallbackQueryHandler(save_grades_button_handler, pattern="^save_grades$"),
-                CallbackQueryHandler(save_grades_button_handler, pattern="^dont_save_grades$")
+                CallbackQueryHandler(save_grades_button_handler, pattern="^dont_save_grades$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text_in_save_grades_state_handler),
             ],
             DELETE_GRADE: [ # state to delete a grade
                 MessageHandler(filters.TEXT & ~filters.COMMAND, delete_grade),
