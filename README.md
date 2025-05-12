@@ -1,57 +1,63 @@
-# 📊 Average Bot - Telegram Open University GPA Calculator
+# 📊 Average Bot - Telegram GPA Calculator for Open University
 
-Welcome to **Average Bot**, a Telegram bot designed to help students at the Open University calculate their weighted GPA effortlessly.
-This bot is particularly useful for students in **exact sciences** (e.g., Computer Science, Mathematics, etc.) where advanced courses carry extra weight.
+**Average Bot** is a Telegram bot designed to help students at the Open University of Israel calculate their weighted GPA easily.  
+It is especially tailored for exact sciences degrees, supporting advanced course weighting and grade management.
 
 ---
 
 ## 🚀 Features
 
-- 📌 Supports both **regular** and **advanced** courses.
-- 📊 Calculates a **weighted GPA** based on course types.
-- 🏫 Designed specifically for **Open University** students.
-- 📝 Supports adding, deleting, and listing grades before calculation.
-- 💾 Remembers user inputs within a session.
-- 💡 Saves the last and saved grades to the database.
-- 🔍 Supports logging user interactions for debugging and analysis.
+- 🎓 Weighted GPA calculation based on course type (regular/advanced)
+- ✍️ Add, delete, and view grades before calculation
+- 📝 Add an optional description for each grade (e.g., "Linear Algebra")
+- 💾 Save and load both recent and saved grades
+- 🧠 Support for students in exact sciences degrees
+- 💬 Feedback system: users can send feedback to the developer
+- 📢 Admin tools: private message or broadcast to all users
+- 🗂 Separate logs for user activity and feedback
+- 🧪 Robust error handling and session state management
 
 ---
 
 ## 🛠️ Installation
 
 ### Prerequisites
-Ensure you have **Python 3.8+** installed. You also need a **Telegram Bot Token**, which you can obtain by chatting with [BotFather](https://t.me/BotFather).
+- Python 3.8+
+- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+- Telegram user ID for admin access
 
 ### Steps
 
 1️⃣ Clone the repository:
 
-```sh
+```bash
 git clone https://github.com/gallevi10/average_telegram_bot_OpenU.git
 cd average_telegram_bot_OpenU
 ```
 
 2️⃣ Install dependencies:
 
-```sh
+```bash
 pip install -r requirements.txt
 ```
 
-3️⃣ Set up the environment variable for your **Telegram Bot Token**:
+3️⃣ Set environment variables:
 
-- On **Linux/macOS**:
-  ```sh
-  export BOT_TOKEN="<your telegram bot token>"
-  ```
+- On Linux/macOS:
+```bash
+export BOT_TOKEN="<your telegram bot token>"
+export ADMIN_TELEGRAM_ID="<your telegram user ID>"
+```
 
-- On **Windows** (PowerShell):
-  ```powershell
-  $env:BOT_TOKEN="<your telegram bot token>"
-  ```
+- On Windows (PowerShell):
+```powershell
+$env:BOT_TOKEN="<your telegram bot token>"
+$env:ADMIN_TELEGRAM_ID="<your telegram user ID>"
+```
 
 4️⃣ Run the bot:
 
-```sh
+```bash
 python average_bot.py
 ```
 
@@ -59,21 +65,20 @@ python average_bot.py
 
 ## 📖 Usage
 
-1. Start the bot by sending `/start` in Telegram.
+1. Start the bot with the `/start` command in Telegram.
 2. The bot will ask if you are studying an **exact sciences** degree.
-3. Enter grades and credit points in the format:  
-   ```
-   <grade (60-100)> <credits (1-8)>
-   ```
-   Example:
-   ```
-   90 5
-   85 4
-   74 4
-   ...
-   ```
-5. Specify if the courses are **regular** or **advanced**.
-6. Add more grades or click on the 'finished' button to get your final GPA.
+3. Enter grades in the following format:
+
+```
+90 5
+85 4
+Object Oriented Programming 95 4
+```
+
+4. Specify if the courses are regular or advanced.
+5. You can add more grades, delete by index, or click "finished" to compute the GPA.
+6. After calculation, choose whether to save your grades.
+7. Use `/feedback` to send feedback to the developer.
 
 ---
 
@@ -81,46 +86,38 @@ python average_bot.py
 
 ```
 Average-Bot/
-│── average_bot.py        # Main bot script
-│── db.py                 # Database setup and queries
-│── utils.py              # Helper functions and constants
-│── requirements.txt      # Dependencies
-│── README.md             # Project documentation (this file)
-│── bot_users.log         # Log file for user interactions
-│── data/                 # Directory for database storage
-│   └── database.db       # SQLite database file
+├── average_bot.py        # Main bot logic
+├── db.py                 # SQLite database operations
+├── utils.py              # Helper functions, constants, logging
+├── requirements.txt      # Dependencies
+├── README.md             # Project documentation
+├── bot_users.log         # User activity logs
+├── feedbacks.log         # User feedback logs
+└── data/
+    └── database.db       # SQLite database file
 ```
 
 ---
 
-## 🛠 Dependencies
-
-This bot relies on:
+## 🧩 Dependencies
 
 - `python-telegram-bot`
-- `sqlite3`
+- `asyncio`
 - `httpx`
-- `urllib3`
-- See full list in `requirements.txt`.
+- `See full list in requirements.txt.`
 
 ---
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to fork the repository and submit a pull request.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## ✉️ Contact
 
-For any issues or feature requests, open an issue on GitHub or contact me at **gallevi1902@gmail.com**.
+For issues, suggestions, or feature requests, feel free to email: **gallevi1902@gmail.com**
 
 ---
 
-Enjoy using **Average Bot**! 🚀
+Enjoy using **Average Bot**! 🚀🎓

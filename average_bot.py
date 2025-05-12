@@ -1,46 +1,27 @@
 # Average Bot - Telegram Bot for GPA Calculation
 # Author: Gal Levi
-# Date: February 2025
+# Date: May 2025
 # License: MIT
-# Version: 2.0
-# Description: This file contains the main logic of the bot.
+# Version: 3.0
+# Description: This file contains the main logic for the bot.
 # This bot helps students from the Open University to calculate their accurate GPA.
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (Application, CommandHandler, MessageHandler,
                           CallbackQueryHandler, filters, ConversationHandler, CallbackContext)
-import logging
 import time
 from utils import *
 from db import *
 
-# logs for debugging
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-
-# logs for the users
-user_logger = logging.getLogger("user_logger")
-user_handler = logging.FileHandler("bot_users.log")
-user_formatter = logging.Formatter("%(asctime)s - %(message)s")
-user_handler.setFormatter(user_formatter)
-user_logger.addHandler(user_handler)
-user_logger.setLevel(logging.INFO)
-
 
 async def start(update: Update, context: CallbackContext) -> int:
     """Starts the conversation with the user."""
-
     user_id = update.message.chat_id  # gets the user's id
     # gets if the user studies an exact sciences degree, returns -1 if the user has not chosen yet
-    exact_science_indication = get_exact_science(user_id)
+    exact_science_indication = await get_exact_science(user_id)
     # if the user restarted the bot before picking a degree type for the first time
     if user_id in ACTIVE_USERS and exact_science_indication == -1:
-        user_logger.info(
-            f"User {user_id} restarted the bot before picking a degree type for the first time."
-            f" Total active users: {len(ACTIVE_USERS)}"
-        )
+        log_user(user_id, "restarted the bot before picking a degree type for the first time.")
         await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=degree_yes_or_no_buttons())
         return ASK_DEGREE
 
@@ -53,11 +34,10 @@ async def start(update: Update, context: CallbackContext) -> int:
     if exact_science_indication != -1:  # if the user has already chosen if he studies an exact sciences degree
         if user_id in ACTIVE_USERS:  # if the user restarted the bot before finishing
             ACTIVE_USERS[user_id] = time.time() # updates the user's last active time
-            user_logger.info(f"User {user_id} restarted the bot before finishing the conversation."
-                             f" Total active users: {len(ACTIVE_USERS)}")
+            log_user_and_active_users(user_id, "restarted the bot before finishing the conversation")
         else:  # if the user finished the last conversation
             ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
-            user_logger.info(f"User {user_id} restarted the bot. Total active users: {len(ACTIVE_USERS)}")
+            log_user_and_active_users(user_id, "restarted the bot")
             context.user_data["user_id"] = user_id  # stores the user's id in the context
         context.user_data["grades"] = []
         if exact_science_indication == 1:  # if the user studies an exact sciences degree
@@ -69,7 +49,7 @@ async def start(update: Update, context: CallbackContext) -> int:
 
     ACTIVE_USERS[user_id] = time.time() # adds the user to the active users dictionary
     context.user_data["user_id"] = user_id # stores the user's id in the context
-    user_logger.info(f"User {user_id} started using the bot. Total active users: {len(ACTIVE_USERS)}")
+    log_user_and_active_users(user_id, "started the bot")
     await update.message.reply_text(START_TEXT) # sends the welcome message
     # asks the user if he studies an exact sciences degree
     await update.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=degree_yes_or_no_buttons())
@@ -82,8 +62,8 @@ async def ask_degree(update: Update, context: CallbackContext) -> int:
     await query.answer()  # acknowledges the user's response
 
     is_exact_science = (query.data == "degree_yes") # either True or False
-    user_logger.info(f"User {context.user_data['user_id']} successfully chose his degree type.") # logs the user's action
-    update_exact_science(context.user_data["user_id"], is_exact_science)  # updates the user's choice in the database
+    log_user(context.user_data["user_id"], "successfully chose his degree type")
+    await update_exact_science(context.user_data["user_id"], is_exact_science)  # updates the user's choice in the database
     context.user_data["grades"] = []  # creates an empty list to store the user's grades
 
     await query.message.reply_text(GRADE_PROMPT, reply_markup=load_grades_buttons()) # prompts the user to enter his grades
@@ -98,7 +78,7 @@ async def receive_grade(update: Update, context: CallbackContext) -> int:
             if not context.user_data["grades"]: # if the user did not enter any grades
                 await query.answer()
                 await query.message.reply_text(NO_GRADES_ENTERED_FINISHED_PRESSED)
-                user_logger.info(f"User {context.user_data['user_id']} tried to finish without entering grades.")
+                log_user(context.user_data["user_id"], "tried to finish without entering grades")
                 return ENTER_GRADE
             await query.answer(COMPUTING_GRADE)
             return await calculate_average(update, context)
@@ -106,7 +86,7 @@ async def receive_grade(update: Update, context: CallbackContext) -> int:
             if not context.user_data["grades"]:
                 await query.answer()
                 await query.message.reply_text(NO_GRADES_ENTERED_DELETE_PRESSED)
-                user_logger.info(f"User {context.user_data['user_id']} tried to delete grades without entering any.")
+                log_user(context.user_data["user_id"], "tried to delete grades without entering any")
                 return ENTER_GRADE
             keyboard = [[
                 InlineKeyboardButton("חזור להזנת ציונים", callback_data="go_back"),
@@ -116,60 +96,69 @@ async def receive_grade(update: Update, context: CallbackContext) -> int:
             await query.answer(WAITING_FOR_INDICES)
             return DELETE_GRADE
         elif query.data == "change_degree": # if the user wants to change his degree type
-            user_logger.info(f"User {context.user_data['user_id']} decided to change his degree type.")
+            log_user(context.user_data["user_id"], "decided to change his degree type")
             await query.message.reply_text(EXACT_SCIENCES_QUESTION, reply_markup=degree_yes_or_no_buttons())
             await query.answer(WAITING_FOR_DEGREE_TYPE)
             return ASK_DEGREE
-        elif query.data == "load_last_grades" or "load_saved_grades": # if the user wants to load his grades
+        elif query.data in ["load_last_grades", "load_saved_grades"]: # if the user wants to load his grades
             if query.data == "load_last_grades":
-                loaded = get_last_grades(context.user_data["user_id"]) # loads the user's last grades
-                user_logger.info(f"User {context.user_data['user_id']} tried to load his last grades.")
+                loaded = await get_last_grades(context.user_data["user_id"]) # loads the user's last grades
+                log_user(context.user_data["user_id"], "tried to load his last grades")
             else:
-                loaded = get_saved_grades(context.user_data["user_id"]) # loads the user's saved grades
-                user_logger.info(f"User {context.user_data['user_id']} tried to load his saved grades.")
+                loaded = await get_saved_grades(context.user_data["user_id"]) # loads the user's saved grades
+                log_user(context.user_data["user_id"], "tried to load his saved grades")
             if loaded: # if the user has grades saved
                 context.user_data["grades"] += loaded
                 await query.answer(SUCCESSFULLY_LOADED_GRADES) # lets the user know the grades were loaded successfully
                 grades_typed = get_history(context)
                 await query.message.reply_text(ADD_GRADE + grades_typed, reply_markup=add_grades_buttons())
-                user_logger.info(f"User {context.user_data['user_id']} loaded his grades successfully.")
+                log_user(context.user_data["user_id"], "loaded his grades successfully")
             else: # if the user does not have last grades
                 await query.message.reply_text(LOAD_GRADES_ERROR)
-                user_logger.info(f"User {context.user_data['user_id']} tried to load grades but has none.")
+                log_user(context.user_data["user_id"], "tried to load grades but has none")
             return ENTER_GRADE
 
-    text = update.message.text.strip()  # gets the user's grade and credits
+    text = update.message.text.strip()  # gets the user's input
     try:
         context.user_data["curr_grades"] = get_grades_input(text)  # parses the user's input into a list of grades
-        if not check_grade_and_credit(context.user_data["curr_grades"]):  # checks if the user's grade and credits are valid
-            await update.message.reply_text(GRADE_OR_CREDITS_ERROR)
-            user_logger.info(f"User {context.user_data['user_id']} entered grades or credits out of range.")
+        valid_indicator = check_input(context.user_data["curr_grades"]) # valid indicator is 1 if the input is valid
+        if valid_indicator < 1:  # if user's input is invalid
+            if valid_indicator == 0:  # if the user entered a grade that is not in the range
+                await update.message.reply_text(GRADE_OR_CREDITS_RANGE_ERROR)
+                log_user(context.user_data["user_id"], "entered grades or credits out of range")
+            elif valid_indicator == -1:  # if the user entered a grade or credit that is not an integer
+                await update.message.reply_text(GRADE_OR_CREDITS_INTEGER_ERROR)
+                log_user(context.user_data["user_id"], "entered non-integer grades")
+            else: # if the user entered a description that is too long
+                await update.message.reply_text(WRONG_DESC_LENGTH_ERROR)
+                log_user(context.user_data["user_id"], "entered a too long description")
             return ENTER_GRADE
-        user_logger.info(f"User {context.user_data['user_id']} entered grades successfully.")
+        log_user(context.user_data["user_id"], "entered grades successfully")
         return await choose_course_type(update, context) # asks the user if the courses are advanced or regular
     except ValueError:  # if the user's input is not in the correct format
         await update.message.reply_text(FORMAT_ERROR)
-        user_logger.info(f"User {context.user_data['user_id']} entered grades in the wrong format.")
+        log_user(context.user_data["user_id"], "entered grades in the wrong format")
         return ENTER_GRADE
 
 
 async def choose_course_type(update: Update, context: CallbackContext) -> int:
     """Asks the user if the course is advanced or regular using inline buttons - exact sciences student."""
 
-    if len(context.user_data["curr_grades"]) == 1:  # if the user entered more than one grade
-        keyboard = [[  # creates inline buttons for the user to choose the course type
-            InlineKeyboardButton("מתקדם", callback_data="advanced"),
-            InlineKeyboardButton("רגיל", callback_data="regular")
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(COURSE_TYPE_QUESTION_SHORT, reply_markup=reply_markup)
-    else:  # if the user entered only one grade
-        keyboard = [[  # creates inline buttons for the user to choose the course type
-            InlineKeyboardButton("מתקדמים", callback_data="advanced"),
-            InlineKeyboardButton("רגילים", callback_data="regular")
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(COURSE_TYPE_QUESTION_LONG, reply_markup=reply_markup)
+    advanced = "מתקדם"
+    regular = "רגיל"
+    msg = COURSE_TYPE_QUESTION_SHORT
+    if len(context.user_data["curr_grades"]) > 1: # if the user entered more than one grade
+        advanced = "מתקדמים"
+        regular = "רגילים"
+        msg = COURSE_TYPE_QUESTION_LONG
+
+    # creates inline buttons for the user to choose the course type
+    keyboard = [[  # creates inline buttons for the user to choose the course type
+        InlineKeyboardButton(advanced, callback_data="advanced"),
+        InlineKeyboardButton(regular, callback_data="regular")
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(msg, reply_markup=reply_markup)
 
     return CHOOSE_COURSE_TYPE
 
@@ -180,9 +169,9 @@ async def receive_course_type(update: Update, context: CallbackContext) -> int:
     await query.answer(SUCCESSFULLY_ADDED_GRADES) # acknowledges the user's response
 
     course_type = query.data  # either "advanced" or "regular"
-    user_logger.info(f"User {context.user_data['user_id']} chose the courses type successfully.")
-
-    context.user_data["grades"] += [(grade, credit, course_type == "advanced") for grade, credit in context.user_data["curr_grades"]]
+    log_user(context.user_data["user_id"], "chose the courses type successfully")
+    context.user_data["grades"] += [(desc, grade, credit, course_type == "advanced")
+                                    for desc, grade, credit in context.user_data["curr_grades"]]
 
     grades_typed = get_history(context)
     await query.message.reply_text(ADD_GRADE + grades_typed, reply_markup=add_grades_buttons())
@@ -194,7 +183,7 @@ async def delete_grade(update: Update, context: CallbackContext) -> int:
     if update.callback_query:  # if the user clicked an inline button
         query = update.callback_query
         if query.data == "go_back":
-            user_logger.info(f"User {context.user_data['user_id']} decided to go back to entering grades.")
+            log_user(context.user_data["user_id"], "decided to go back to entering grades")
             await query.answer(GOING_BACK_TO_GRADES_INPUT)
             grades_typed = get_history(context)
             await query.message.reply_text(ADD_GRADE + grades_typed, reply_markup=add_grades_buttons())
@@ -208,21 +197,22 @@ async def delete_grade(update: Update, context: CallbackContext) -> int:
         if wrong_indices:  # if the list of wrong indices is not empty
             await update.message.reply_text("❌ האינדקסים הבאים לא תואמים לאף ציון:"
                                             "\n" + " ".join(map(str, wrong_indices))
-                                            + "\n"
+                                            +"\n"
                                             "אנא הכנס אינדקסים בטווח 1-" + str(len(context.user_data["grades"])))
-            user_logger.info(f"User {context.user_data['user_id']} entered not matching indices.")
+            log_user(context.user_data["user_id"], "entered not matching indices")
             return DELETE_GRADE
 
         ind_set = set(indices) # creates a set of the indices to check for duplicates
         if len(ind_set) != len(indices):  # checks if the user entered the same index more than once
             await update.message.reply_text(DUPLICATE_INDICES_ERROR)
+            log_user(context.user_data["user_id"], "entered duplicate indices")
             return DELETE_GRADE # asks the user to enter the indices again
 
         indices.sort(reverse=True)  # sorts the indices in reverse order in order to delete them correctly
         for index in indices:  # iterates over the user's indices after validation
             context.user_data["grades"].pop(index - 1)  # deletes the grade by index
 
-        user_logger.info(f"User {context.user_data['user_id']} deleted grades successfully.")
+        log_user(context.user_data["user_id"], "deleted grades successfully")
         await update.message.reply_text(SUCCESSFULLY_DELETED_GRADE)
         if len(context.user_data["grades"]) == 0:  # if the user deleted all the grades
             # prompts the user to enter a new grade from the beginning
@@ -233,7 +223,7 @@ async def delete_grade(update: Update, context: CallbackContext) -> int:
         return ENTER_GRADE
     except ValueError:
         await update.message.reply_text(WRONG_NUMBER_ERROR)
-        user_logger.info(f"User {context.user_data['user_id']} entered non-numeric index.")
+        log_user(context.user_data["user_id"], "entered non-numeric index")
         return DELETE_GRADE
 
 
@@ -241,23 +231,23 @@ async def calculate_average(update: Update, context: CallbackContext) -> int:
     """Calculates the weighted average of the user's grades."""
     query = update.callback_query
     await query.answer()
-    user_id = context.user_data["user_id"]
 
+    user_id = context.user_data["user_id"]
     grades = context.user_data["grades"]  # gets the user's grades
-    is_exact = get_exact_science(user_id)  # gets if the user studies an exact sciences degree
+    is_exact = await get_exact_science(user_id)  # gets if the user studies an exact sciences degree
 
     # calculates the total weighted grades
-    total_weighted = sum(grade * credits * (ADVANCED_COURSE if is_exact and is_advanced else 1) for grade, credits, is_advanced in grades)
+    total_weighted = sum(grade * credits * (ADVANCED_COURSE if is_exact and is_advanced else 1) for _, grade, credits, is_advanced in grades)
     # calculates the total credits
-    total_credits = sum(credits * (ADVANCED_COURSE if is_exact and is_advanced else 1) for _, credits, is_advanced in grades)
+    total_credits = sum(credits * (ADVANCED_COURSE if is_exact and is_advanced else 1) for _, _, credits, is_advanced in grades)
     weighted_avg = total_weighted / total_credits  # calculates the weighted average
 
     await query.message.reply_text(f"🎓 הממוצע המשוקלל שלך הוא: {weighted_avg:.2f}", reply_markup=ReplyKeyboardRemove())
-    user_logger.info(f"User {user_id} calculated his average successfully.") # logs the user's action
+    log_user(user_id, "calculated his average successfully")
 
-    update_last_grades(user_id, grades)  # updates the user's last grades in the database
+    await update_last_grades(user_id, grades)  # updates the user's last grades in the database
 
-    saved_grades = get_saved_grades(user_id)
+    saved_grades = await get_saved_grades(user_id)
     if saved_grades == grades:  # if the current grades are already in the database
         return await end(query, context)
 
@@ -269,63 +259,143 @@ async def calculate_average(update: Update, context: CallbackContext) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     if not saved_grades:  # if the user does not have saved grades
         await query.message.reply_text(NOT_EXISTS_SAVED_GRADES_PROMPT, reply_markup=reply_markup)
-    else:  # if the user has saved grades
+    else:
         await query.message.reply_text(EXISTS_SAVED_GRADES_PROMPT, reply_markup=reply_markup)
     return SAVE_GRADES
 
-async def save_grades_button_handler(update: Update, context: CallbackContext) -> int:
+async def save_grades(update: Update, context: CallbackContext) -> int:
     """Handles the user's choice to save his grades."""
     query = update.callback_query
+    user_id = context.user_data["user_id"]
     if query.data == "save_grades":  # if the user wants to save his grades
-        user_logger.info(f"User {context.user_data['user_id']} chose to save his grades.")
-        user_id = context.user_data["user_id"]
         grades = context.user_data["grades"]
-        update_saved_grades(user_id, grades)  # saves the user's grades in the database
+        log_user(user_id, "chose to save his grades")
+        await update_saved_grades(user_id, grades)  # saves the user's grades in the database
         await query.answer(SUCCESSFULLY_SAVED_GRADES)
     else:
-        user_logger.info(f"User {context.user_data['user_id']} chose not to save his grades.")
+        log_user(user_id, "chose not to save his grades")
         await query.answer(SUCCESSFULLY_NOT_SAVED_GRADES)
 
     return await end(query, context)
 
 async def end(update: Update, context: CallbackContext) -> int:
     """Ends the conversation with the user."""
-    if update.message:  # if the user typed /end
+    if update.message:  # if the user typed /end or /feedback
+        user_id = update.message.chat_id
         await update.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
     else:  # if the user clicked the "finished" button
+        user_id = update.callback_query.message.chat_id
         await update.callback_query.message.reply_text(END_TEXT, reply_markup=ReplyKeyboardRemove())
 
-    user_id = context.user_data["user_id"]
+
     if user_id in ACTIVE_USERS:  # removes the user from the active users dictionary
         del ACTIVE_USERS[user_id]
 
-    user_logger.info(f"User {user_id} exited the bot. Total active users: {len(ACTIVE_USERS)}")
+    log_user_and_active_users(user_id, "exited the bot")
     return ConversationHandler.END  # ends the conversation
 
+
+# handlers for the conversation states
 async def unknown_command_handler(update: Update, context: CallbackContext) -> None:
     """Handles unknown commands."""
     await update.message.reply_text(UNKNOWN_COMMAND)
-    user_logger.info(f"User {update.message.chat_id} entered an unknown command.")
+    log_user(update.message.chat_id, "entered an unknown command")
 
 async def unknown_text_before_start_handler(update: Update, context: CallbackContext) -> None:
     """Handles text before starting the conversation."""
     await update.message.reply_text(UNKNOWN_TEXT_BEFORE_START)
-    user_logger.info(f"User {update.message.chat_id} entered text before starting the conversation.")
+    log_user(update.message.chat_id, "entered text before starting the conversation")
 
 async def unknown_text_in_degree_state_handler(update: Update, context: CallbackContext) -> None:
     """Handles text in the degree state."""
     await update.message.reply_text(UNKNOWN_TEXT_IN_DEGREE_STATE)
-    user_logger.info(f"User {update.message.chat_id} entered text in the degree state.")
+    log_user(update.message.chat_id, "entered text in the degree state")
+
 
 async def unknown_text_in_course_type_state_handler(update: Update, context: CallbackContext) -> None:
     """Handles text in the course type state."""
     await update.message.reply_text(UNKNOWN_TEXT_IN_COURSE_TYPE_STATE)
-    user_logger.info(f"User {update.message.chat_id} entered text in the course type state.")
+    log_user(update.message.chat_id, "entered text in the course type state")
 
 async def unknown_text_in_save_grades_state_handler(update: Update, context: CallbackContext) -> None:
     """Handles text in the save grades state."""
     await update.message.reply_text(UNKNOWN_TEXT_IN_SAVE_GRADES_STATE)
-    user_logger.info(f"User {update.message.chat_id} entered text in the save grades state.")
+    log_user(update.message.chat_id, "entered text in the save grades state")
+
+
+async def start_broadcast_process(update: Update, context: CallbackContext) -> int:
+    """Handles the admin's request to write a broadcast message."""
+    user_id = update.message.chat_id
+    log_user(user_id, "tried to write broadcast message")
+    await update.message.reply_text(BROADCAST_MSG)
+    return WRITE_BROADCAST_MSG
+
+async def start_single_process(update: Update, context: CallbackContext) -> int:
+    """Handles the admin's request to write a single message to a specific user."""
+    user_id = update.message.chat_id
+    log_user(user_id, "tried to write single message")
+    await update.message.reply_text(ASK_ID_FOR_PRIVATE_MSG)
+    return GET_ID_FOR_PRIVATE_MESSAGE
+
+async def get_id_for_single_msg_handler(update: Update, context: CallbackContext) -> int:
+    """Handles the admin's request to write a single message to a specific user."""
+    user_id = update.message.chat_id
+    try:
+        target_user_id = int(update.message.text.strip())  # gets the user's id
+        if not await user_exists(target_user_id):
+            await update.message.reply_text(ID_NOT_FOUND_ERROR)
+            log_user(user_id, "tried to send a message to a user that does not exist")
+            return GET_ID_FOR_PRIVATE_MESSAGE
+        context.user_data["target_user_id"] = target_user_id  # stores the user's id in the context
+        await update.message.reply_text(PRIVATE_MSG)
+        return WRITE_PRIVATE_MSG
+    except ValueError:
+        await update.message.reply_text(WRONG_ID_ERROR)
+        return GET_ID_FOR_PRIVATE_MESSAGE
+
+async def single_message_handler(update: Update, context: CallbackContext) -> None:
+    """Handles the single message to a specific user."""
+    user_id = update.message.chat_id
+    target_user_id = context.user_data["target_user_id"]  # gets the target user's id
+    private_message = update.message.text.strip()  # gets the admin's private message
+    log_user(user_id, f"wrote a private message to user {target_user_id}: {private_message}")
+    await send_single_message(target_user_id, private_message)  # sends the private message to the user
+    await update.message.reply_text(SINGLE_ACKNOWLEDGEMENT)
+
+async def broadcast_handler(update: Update, context: CallbackContext) -> None:
+    """Handles the broadcast message."""
+    user_id = update.message.chat_id
+    broadcast_message = update.message.text.strip()  # gets the admin broadcast message
+    log_user(user_id, f"wrote the broadcast message: {broadcast_message}")
+    successfully_sent = await send_broadcast_message(broadcast_message)  # sends the broadcast message to all users
+    await update.message.reply_text(f"✅ ההודעה נשלחה בהצלחה ל-{successfully_sent} משתמשים.")
+
+async def start_feedback_process(update: Update, context: CallbackContext) -> int:
+    """Handles the user's request to write feedback."""
+    user_id = update.message.chat_id
+    log_user(user_id, "started writing a feedback")
+    keyboard = [[
+        InlineKeyboardButton("אני לא מעוניין לכתוב פידבק", callback_data="exit_feedback"),
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(FEEDBACK_MSG, reply_markup=reply_markup)
+    return WRITE_FEEDBACK
+
+async def feedback_handler(update: Update, context: CallbackContext) -> int:
+    """Handles the user's feedback."""
+    query = update.callback_query
+    if query and query.data == "exit_feedback": # if the user does not want to write feedback
+        user_id = query.message.chat_id
+        await query.answer()
+        await query.message.reply_text(FEEDBACK_EXIT)
+        log_user(user_id, "exited the feedback process")
+    else:
+        user_id = update.message.chat_id
+        feedback = update.message.text.strip()  # gets the user's feedback
+        log_user(user_id, f"wrote a feedback")
+        feedback_logger.info(f"User {user_id} wrote the feedback: {feedback}")
+        await update.message.reply_text(FEEDBACK_ACKNOWLEDGEMENT)
+    return await end(update, context)  # ends the conversation
 
 def main():
     """Main function to run the bot."""
@@ -333,10 +403,15 @@ def main():
     setup_database() # creates the database if it does not exist
 
     # creates a conversation handler
+    common_commands_and_unknown_command_handling = [
+        CommandHandler("start", start),
+        CommandHandler("feedback", start_feedback_process),
+        CommandHandler("broadcast", start_broadcast_process, filters=filters.User(user_id=ADMIN_ID)),
+        CommandHandler("single", start_single_process, filters=filters.User(user_id=ADMIN_ID)),
+        MessageHandler(filters.COMMAND, unknown_command_handler),
+    ]
     conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler("start", start), # starts the conversation
-            MessageHandler(filters.COMMAND, unknown_command_handler), # handles unknown commands
+        entry_points=common_commands_and_unknown_command_handling + [
             MessageHandler(filters.TEXT, unknown_text_before_start_handler), # handles text before starting
         ],
         states={
@@ -359,8 +434,8 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text_in_course_type_state_handler),
             ],
             SAVE_GRADES: [ # state to save the user's grades
-                CallbackQueryHandler(save_grades_button_handler, pattern="^save_grades$"),
-                CallbackQueryHandler(save_grades_button_handler, pattern="^dont_save_grades$"),
+                CallbackQueryHandler(save_grades, pattern="^save_grades$"),
+                CallbackQueryHandler(save_grades, pattern="^dont_save_grades$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text_in_save_grades_state_handler),
             ],
             DELETE_GRADE: [ # state to delete a grade
@@ -368,12 +443,23 @@ def main():
                 CallbackQueryHandler(delete_grade, pattern="^go_back$"),
                 CallbackQueryHandler(receive_grade, pattern="^finished$") # if the user regrets and wants to finish
             ],
+            WRITE_FEEDBACK: [ # state to write feedback
+                MessageHandler(filters.TEXT & ~filters.COMMAND, feedback_handler),
+                CallbackQueryHandler(feedback_handler, pattern="^exit_feedback$"),
+            ],
+            WRITE_BROADCAST_MSG: [ # state to write a broadcast message
+                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_handler),
+            ],
+            GET_ID_FOR_PRIVATE_MESSAGE: [ # state to get the user's id for a private message
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_id_for_single_msg_handler),
+            ],
+            WRITE_PRIVATE_MSG: [ # state to write a private message
+                MessageHandler(filters.TEXT & ~filters.COMMAND, single_message_handler),
+            ],
         },
         fallbacks=[
             CommandHandler("end", end), # ends the conversation
-            CommandHandler("start", start), # starts the conversation from any state
-            MessageHandler(filters.COMMAND, unknown_command_handler), # handles unknown commands
-        ]
+        ] + common_commands_and_unknown_command_handling
     )
 
     app.add_handler(conv_handler)
